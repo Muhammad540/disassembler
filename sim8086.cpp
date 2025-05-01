@@ -91,54 +91,255 @@ int main(int argc, char *argv[]){
     //    11011 ( bit shift right by 3, then mask with 0x07 0111) 
     //      001 ( mask with 0x07)
     size_t pc = 0;
+    int inst_len = 2;   
     while (pc+1 < buffer.size()){
         uint8_t b0 = buffer[pc];
         uint8_t b1 = buffer[pc+1];
+        uint8_t b2 = buffer[pc+2];
+        uint8_t b3 = buffer[pc+3];
         // first byte decoding
         uint8_t opcode = b0 >> 2;
-        uint8_t d = b0 & 0x02;
-        uint8_t w = b0 & 0x01;
-        // second byte decoding
-        uint8_t mod = b1 >> 6;
-        uint8_t reg = (b1 >> 3) & 0x07;
-        uint8_t r_m = b1 & 0x07;
 
+        // Register/memory to/from register
         if (opcode == 0b100010) {
+            uint8_t d = b0 & 0x02;
+            uint8_t w = b0 & 0x01;
+            // second byte decoding
+            uint8_t mod = b1 >> 6;
+            uint8_t reg = (b1 >> 3) & 0x07;
+            uint8_t r_m = b1 & 0x07;
+
+            if (mod == 0b01) inst_len = 3;
+            else if (mod == 0b10) inst_len = 4;
+            else if (mod == 0b00 && r_m == 0b110) inst_len = 4;
+            if (pc + inst_len - 1 >= buffer.size()) break;
+            
             std::cout << "mov ";
-        } else {
-            std::cerr << "Unknown opcode: " << std::hex << static_cast<int>(opcode) << std::endl;
-            return 1;
-        }
 
-
-        if (d == 0) {
-            // reg field is the source operand
-            // r_m field is the destination operand
-        if (mod == 0b11) {
-            // register mode with memory displacement
-            const char *regMemName = getRegMemName(w, r_m);
-            std::cout << regMemName[0] << regMemName[1];
-        }
-        std::cout << ", ";
-            // get register name 
-            const char *regName = getRegName(w, reg);
-            std::cout << regName[0] << regName[1];
-            std::cout << std::endl;
-        } else {
-            // reg field is the destination operand
-            // r_m field is the source operand
-            // get register name 
-            const char *regName = getRegName(w, reg);
-            std::cout << regName[0] << regName[1];
-            std::cout << ", ";
-            if (mod == 0b11) {
-            // register mode with memory displacement
-            const char *regMemName = getRegMemName(w, r_m);
-                std::cout << regMemName[0] << regMemName[1];
+            if (mod == 0b11) { // mod 0b11 is a register to register move
+                if (d == 0) {
+                    // reg field is the source operand
+                    // r_m field is the destination operand
+                    // register mode with memory displacement
+                    const char *regMemName = getRegMemName(w, r_m);
+                    std::cout << regMemName[0] << regMemName[1];
+                    std::cout << ", ";
+                    // get register name 
+                    const char *regName = getRegName(w, reg);
+                    std::cout << regName[0] << regName[1];
+                    std::cout << std::endl;
+                } else {
+                    // reg field is the destination operand
+                    // r_m field is the source operand
+                    // get register name 
+                    const char *regName = getRegName(w, reg);
+                    std::cout << regName[0] << regName[1];
+                    std::cout << ", ";
+                    // register mode with memory displacement
+                    const char *regMemName = getRegMemName(w, r_m);
+                    std::cout << regMemName[0] << regMemName[1];
+                    std::cout << std::endl;
+                }
+            } else if (mod == 0b00){
+                if (d == 0){
+                    switch (r_m){
+                        case 0b000:
+                            std::cout << "[bx + si]";
+                            break;                                  
+                        case 0b001:
+                            std::cout << "[bx + di]";
+                            break;
+                        case 0b010:
+                            std::cout << "[bp + si]";
+                            break;
+                        case 0b011:
+                            std::cout << "[bp + di]";
+                            break;
+                        case 0b100:
+                            std::cout << "[si]";
+                            break;
+                        case 0b101:
+                            std::cout << "[di]";
+                            break;
+                        case 0b110:{
+                            uint8_t direct_address = uint8_t(b3 << 8 | b2);
+                            std::cout << "[" << direct_address << "]";
+                            break;
+                        }
+                        case 0b111:
+                            std::cout << "[bx]";
+                            break;
+                    }
+                    std::cout << ", ";
+                    const char *regName = getRegName(w, reg);
+                    std::cout << regName[0] << regName[1];
+                    std::cout << std::endl;
+                } else {
+                    const char *regName = getRegName(w, reg);
+                    std::cout << regName[0] << regName[1];
+                    std::cout << ", ";
+                    switch (r_m){
+                        case 0b000:
+                            std::cout << "[bx + si]";
+                            break;
+                        case 0b001:
+                            std::cout << "[bx + di]";
+                            break;
+                        case 0b010:
+                            std::cout << "[bp + si]";
+                            break;
+                        case 0b011:
+                            std::cout << "[bp + di]";
+                            break;
+                        case 0b100:
+                            std::cout << "[si]";
+                            break;
+                        case 0b101:
+                            std::cout << "[di]";
+                            break;
+                        case 0b110:{
+                            int16_t direct_address = int16_t(b3 << 8 | b2);
+                            std::cout << "[" << direct_address << "]";
+                            break;
+                        }
+                        case 0b111:
+                            std::cout << "[bx]";
+                            break;
+                    }
+                    std::cout << std::endl;
+                }
+            } else if (mod == 0b01){
+                if (d == 0){
+                    switch (r_m){
+                        case 0b000:
+                            std::cout << "[bx + si + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b001:
+                            std::cout << "[bx + di + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b010:
+                            std::cout << "[bp + si + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b011:
+                            std::cout << "[bp + di + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b100:
+                            std::cout << "[si + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b101:
+                            std::cout << "[di + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b110:
+                            std::cout << "[bp + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b111:
+                            std::cout << "[bx + " << (int8_t)b2 << "]";
+                            break;
+                    }
+                    std::cout << ", ";
+                    const char *regName = getRegName(w, reg);
+                    std::cout << regName[0] << regName[1];
+                    std::cout << std::endl;
+                } else {
+                    const char *regName = getRegName(w, reg);
+                    std::cout << regName[0] << regName[1];
+                    std::cout << ", ";
+                    switch (r_m){
+                        case 0b000:
+                            std::cout << "[bx + si + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b001:
+                            std::cout << "[bx + di + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b010:
+                            std::cout << "[bp + si + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b011:
+                            std::cout << "[bp + di + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b100:
+                            std::cout << "[si + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b101:
+                            std::cout << "[di + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b110:
+                            std::cout << "[bp + " << (int8_t)b2 << "]";
+                            break;
+                        case 0b111:
+                            std::cout << "[bx + " << (int8_t)b2 << "]";
+                            break;
+                    }
+                    std::cout << std::endl;
+                }
+            } else if (mod == 0b10){
+                if (d == 0){
+                    switch (r_m){
+                        case 0b000:
+                            std::cout << "[bx + si + " << (int16_t)(b3 << 8 | b2) << "]" << std::endl;
+                            break;
+                        case 0b001:
+                            std::cout << "[bx + di + " << (int16_t)(b3 << 8 | b2) << "]" << std::endl;
+                            break;
+                        case 0b010:
+                            std::cout << "[bp + si + " << (int16_t)(b3 << 8 | b2) << "]" << std::endl;
+                            break;  
+                        case 0b011:
+                            std::cout << "[bp + di + " << (int16_t)(b3 << 8 | b2) << "]" << std::endl;
+                            break;
+                        case 0b100:
+                            std::cout << "[si + " << (int16_t)(b3 << 8 | b2) << "]" << std::endl;
+                            break;
+                        case 0b101:
+                            std::cout << "[di + " << (int16_t)(b3 << 8 | b2) << "]" << std::endl;
+                            break;
+                        case 0b110:
+                            std::cout << "[bp + " << (int16_t)(b3 << 8 | b2) << "]" << std::endl;
+                            break;
+                        case 0b111:
+                            std::cout << "[bx + " << (int16_t)(b3 << 8 | b2) << "]" << std::endl;
+                            break;
+                    }
+                    std::cout << ", ";
+                    const char *regName = getRegName(w, reg);
+                    std::cout << regName[0] << regName[1];
+                    std::cout << std::endl;
+                } else {
+                    const char *regName = getRegName(w, reg);
+                    std::cout << regName[0] << regName[1];
+                    std::cout << ", ";
+                    switch (r_m){    
+                        case 0b000:
+                            std::cout << "[bx + si + " << (int16_t)(b3 << 8 | b2) << "]";
+                            break;
+                        case 0b001:
+                            std::cout << "[bx + di + " << (int16_t)(b3 << 8 | b2) << "]";
+                            break;
+                        case 0b010:
+                            std::cout << "[bp + si + " << (int16_t)(b3 << 8 | b2) << "]";
+                            break;  
+                        case 0b011:
+                            std::cout << "[bp + di + " << (int16_t)(b3 << 8 | b2) << "]";
+                            break;
+                        case 0b100:
+                            std::cout << "[si + " << (int16_t)(b3 << 8 | b2) << "]";
+                            break;
+                        case 0b101:
+                            std::cout << "[di + " << (int16_t)(b3 << 8 | b2) << "]";
+                            break;
+                        case 0b110:
+                            std::cout << "[bp + " << (int16_t)(b3 << 8 | b2) << "]";
+                            break;
+                        case 0b111:
+                            std::cout << "[bx + " << (int16_t)(b3 << 8 | b2) << "]";
+                            break;
+                    }
+                    std::cout << std::endl;
+                }
             }
-            std::cout << std::endl;
         }
-        pc += 2;
+
+        pc += inst_len;
     }
     return 0;
 }
