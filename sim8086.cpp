@@ -98,7 +98,7 @@ int main(int argc, char *argv[]){
         if (mov_opcode == 0b100010) {
             int inst_len = 2;
             uint8_t d = b0 & 0x02;
-            uint8_t w = (b0 >> 3) & 0x01;
+            uint8_t w = b0 & 0x01; // (b0 >> 3) & 0x01;
             // second byte decoding
             uint8_t mod = b1 >> 6;
             uint8_t reg = (b1 >> 3) & 0x07;
